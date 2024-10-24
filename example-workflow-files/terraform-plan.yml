@@ -1,0 +1,91 @@
+name: 'Terraform Plan'
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'terraform/**'
+      - '.github/workflows/**'
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  plan-dev:
+    name: 'Terraform Plan Dev'
+    runs-on: ubuntu-latest
+    if: github.base_ref == 'develop'
+    environment: dev
+    
+    defaults:
+      run:
+        working-directory: ./terraform
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::YOUR_DEV_ACCOUNT_ID:role/github-actions-myproject-dev  # Update this
+          aws-region: us-east-1
+          role-session-name: TerraformPlan
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.7.0"
+
+      - name: Terraform Init
+        run: |
+          terraform init \
+            -backend-config="bucket=dev-myproject-terraform-state" \
+            -backend-config="key=terraform.tfstate" \
+            -backend-config="region=us-east-1" \
+            -backend-config="dynamodb_table=terraform-lock-myproject-dev"
+
+      - name: Terraform Plan
+        run: |
+          terraform plan \
+            -var-file="environments/dev.tfvars"
+
+  plan-prod:
+    name: 'Terraform Plan Prod'
+    runs-on: ubuntu-latest
+    if: github.base_ref == 'main'
+    environment: prod
+    
+    defaults:
+      run:
+        working-directory: ./terraform
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::YOUR_PROD_ACCOUNT_ID:role/github-actions-myproject-prod  # Update this
+          aws-region: us-east-1
+          role-session-name: TerraformPlan
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.7.0"
+
+      - name: Terraform Init
+        run: |
+          terraform init \
+            -backend-config="bucket=prod-myproject-terraform-state" \
+            -backend-config="key=terraform.tfstate" \
+            -backend-config="region=us-east-1" \
+            -backend-config="dynamodb_table=terraform-lock-myproject-prod"
+
+      - name: Terraform Plan
+        run: |
+          terraform plan \
+            -var-file="environments/prod.tfvars"
